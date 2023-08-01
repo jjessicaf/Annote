@@ -32,7 +32,7 @@ export const AnnoteAreaProvider: FC<{ children: React.ReactNode }> = ({ children
     const [highlightColor, setHighlightColor] = useState('#ff595e'); // yellow
     const [isHidden, setHiddenState] = useState(false); // can be seen 
     const [textOn, setTextState] = useState(true); // can't edit text 
-    const [highlightOn, setHighlightState] = useState(false); // can't highlight
+    const [highlightOn, setHighlightState] = useState(true); // can't highlight
 
     return (
       <AnnoteArea.Provider

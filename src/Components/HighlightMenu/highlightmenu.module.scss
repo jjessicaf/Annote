@@ -1,0 +1,55 @@
+.highlightMenu {
+    height: 50px;
+    width: 200px;
+    display: flex;
+    gap: 8px;
+    background-color: black;
+    color: #fff;
+    border-radius: 6px;
+    padding: 5px 0;
+    position: absolute;
+    justify-content: center;
+    user-select: auto;
+    pointer-events: auto;
+    transition: opacity 0.4s;
+    z-index: 10;
+    opacity: 1;
+}
+.highlightMenu::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: black transparent transparent transparent;
+}
+
+.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+.colorsButton {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background-color: blue;
+}
+
+.pink {
+    background-color: pink;
+    border-color: pink;
+}
+
+.yellow {
+    background-color: yellow;
+    border-color: yellow;
+}
+
+.blue {
+    background-color: aqua;
+    border-color: aqua;
+}

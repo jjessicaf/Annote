@@ -5,7 +5,7 @@ import AnnoteArea from "../Components/AnnoteArea";
 const Annote = () => (
     <AnnoteAreaProvider>
          <main>
-             <AnnoteArea />
+            <AnnoteArea />
          </main>
      </AnnoteAreaProvider>
 )

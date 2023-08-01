@@ -10,6 +10,8 @@ import { useAnnoteArea } from '../../Context/context'
 import scss from './annotearea.module.scss'
 import { text } from 'stream/consumers';
 import TextArea from 'Components/Textbox';
+import HighlightMenu from 'Components/HighlightMenu';
+import { start } from 'repl';
 
 // container of all the edits
 
@@ -27,7 +29,24 @@ function AnnoteArea() {
 
     const [textAreas, setTextAreas] = useState<ReactElement[]>([]);
 
+    const [toDisplay, setToDisplay] = useState(false); 
+    const [displayX, setDisplayX] = useState(0);
+    const [displayY, setDisplayY] = useState(0);
+    
+    const mouseX = useRef(0);
+    const mouseY = useRef(0);
+    const lastTextSelection = useRef("");
+    const maxX = useRef(0);
+    const minX = useRef(document.documentElement.clientWidth + 1);
+
+    const handleMouseMove = (event: MouseEvent) => {
+        const { pageX, pageY } = event;
+        mouseX.current = pageX;
+        mouseY.current = pageY;
+    };
+
     const dragging = useRef(false);
+    const [isDragging, setIsDragging] = useState(false);
     const activeObj = useRef(false);
     const setActiveObj = (value: React.RefObject<any>) => {
         activeObj.current = value.current;
@@ -37,10 +56,12 @@ function AnnoteArea() {
     useEffect(() => {
         console.log("useEffect from content!")
         window.addEventListener('click', handleClick);
-        window.addEventListener('mouseup', handleSelection);
+        document.addEventListener('mouseup', handleSelection);
+        window.addEventListener('mousedown', handleMouseMove);
         return () => { // when component is unmounted 
             window.removeEventListener('click', handleClick);
-            window.removeEventListener('mouseup', handleSelection);
+            document.removeEventListener('mouseup', handleSelection);
+            window.removeEventListener('mousedown', handleMouseMove);
         }
     }, [])
 
@@ -50,18 +71,53 @@ function AnnoteArea() {
         }
     }, [isHidden])
 
+    useEffect(() => { // listen to dragging
+        const handleMouseDown = (event: MouseEvent) => {
+            setIsDragging(true);
+            maxX.current = Math.max(maxX.current, event.pageX);
+            minX.current = Math.min(minX.current, event.pageX);
+        };
+    
+        const handleMouseMove = (event: MouseEvent) => {
+          if (isDragging) {
+            maxX.current = Math.max(maxX.current, event.pageX);
+            minX.current = Math.min(minX.current, event.pageX);
+          }
+        };
+    
+        const handleMouseUp = () => {
+            setIsDragging(false);
+            minX.current = document.documentElement.clientWidth + 1;
+            maxX.current = 0;
+        };
+    
+        document.addEventListener('mousedown', handleMouseDown);
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    
+        return () => {
+          document.removeEventListener('mousedown', handleMouseDown);
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging]);
+
     const handleClick = (event: MouseEvent) => {
         if (event.button != 0) return; // not a left-click
+        // check if link is being clicked
 
-        console.log(activeObj.current);
-
-        if (dragging.current) {
+        if (dragging.current) { // is highlighting 
             dragging.current = false; 
         }
-        else if (!(event.target as HTMLElement).closest("textarea") && activeObj.current) {
+        else if (!(event.target as HTMLElement).closest("textarea") && activeObj.current) { // not clicking
             activeObj.current = false;
-        } else if (!dragging.current && !activeObj.current && textOn) {
-            // create text area 
+            lastTextSelection.current = "";
+            handleSelection(event);
+            setToDisplay(false);
+        } else if (!dragging.current && !activeObj.current && textOn) { // create text area 
+            lastTextSelection.current = "";
+            handleSelection(event);
+            setToDisplay(false);
             console.log("create text: " + event.clientX + " " + event.clientY);
             newTextArea(event.pageX, event.pageY, i.current); // location and index
             i.current++;
@@ -76,16 +132,36 @@ function AnnoteArea() {
         setTextAreas((prevTextAreas) => [...prevTextAreas, newTextAreaElement]);
     };
 
-    const handleSelection = () => {
-        const selection = window.getSelection();
+    const handleSelection = (event: Event) => {
+        event.stopPropagation();
+        const selection = document.getSelection();
         if (highlightOn && selection) {
             const selectedText = selection.toString().trim();
-            console.log(selectedText);
-            if (selectedText.length > 0) {
-                
-                // bring up highlightMenu
-                // then set based on color selection
-                // should await? 
+            console.log("selected text: " + selectedText + ", last: " + lastTextSelection.current);
+            if (selectedText.length >= 1) {
+                dragging.current = true;
+                activeObj.current = true;
+                if (selectedText != lastTextSelection.current) {
+                    var xPos = mouseX.current;
+                    var yPos = mouseY.current; // to-do: make it dyanmic
+                    
+                    const range = selection.getRangeAt(0);
+                    const startNode = range.startContainer;
+                    
+                    if (startNode) {
+                        const boxTop = startNode.parentElement? startNode.parentElement.getBoundingClientRect().top : 0;
+                        const boxBot = startNode.parentElement? startNode.parentElement.getBoundingClientRect().bottom : 0;
+                        yPos = (document.documentElement.scrollTop + boxTop) - 50; // 50 is height of menu
+                        xPos = minX.current + (maxX.current-minX.current)/2 - 100; // 100 is half of width of menu
+                        if (boxBot-boxTop < 30) yPos -= 120/(boxBot-boxTop);
+                    }
+                    else yPos -= 70;
+                   
+                    setDisplayX(xPos);
+                    setDisplayY(yPos);
+                    setToDisplay(true);
+                }
+                lastTextSelection.current = selectedText;
 
                 /*
                 dragging.current = true;
@@ -97,6 +173,9 @@ function AnnoteArea() {
                 newNode.appendChild(range.extractContents());
                 range.insertNode(newNode);
                 */
+            }
+            else {
+                setToDisplay(false);
             }
         }
     }
@@ -124,6 +203,7 @@ function AnnoteArea() {
 
     return (
         <div className={scss[wrapperClass]}>
+            <HighlightMenu x={displayX} y={displayY} displayMenu={toDisplay} />
             {textAreas.map((textAreaElement, index) => (
                 <React.Fragment key={index}>{textAreaElement}</React.Fragment>
             ))}
