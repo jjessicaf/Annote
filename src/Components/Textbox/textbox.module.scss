@@ -1,0 +1,17 @@
+.textbox {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    resize : both;
+    overflow : auto;
+    user-select: auto;
+    pointer-events: auto;
+    transition: width 0.3s, height 0.3s;
+}
+
+.minimized {
+    width: 40px; /* Set the width and height to the desired minimized size */
+    height: 40px;
+    border-radius: 50%;
+    resize: none; /* Disable resizing when minimized */
+}
