@@ -27,8 +27,6 @@ function AnnoteArea() {
 
     const {highlightColor, isHidden, textOn, highlightOn} = useAnnoteArea();
 
-    const [textAreas, setTextAreas] = useState<ReactElement[]>([]);
-
     const [toDisplay, setToDisplay] = useState(false); 
     const [displayX, setDisplayX] = useState(0);
     const [displayY, setDisplayY] = useState(0);
@@ -51,7 +49,13 @@ function AnnoteArea() {
     const setActiveObj = (value: React.RefObject<any>) => {
         activeObj.current = value.current;
     };    
+
+    const [textAreas, setTextAreas] = useState<ReactElement[]>([]);
     const i = useRef(0); // index of text area
+
+    const [highlightNodes, setHighlightNodes] = useState({});
+    const highlightIndex = useRef(0);
+    const lastColor = useRef('#ffe159');
 
     useEffect(() => {
         console.log("useEffect from content!")
@@ -102,6 +106,11 @@ function AnnoteArea() {
         };
     }, [isDragging]);
 
+    useEffect(() => {
+        console.log("Annotearea: " + highlightColor);
+        handleSelection();
+    }, [highlightColor]);
+
     const handleClick = (event: MouseEvent) => {
         if (event.button != 0) return; // not a left-click
         // check if link is being clicked
@@ -112,11 +121,11 @@ function AnnoteArea() {
         else if (!(event.target as HTMLElement).closest("textarea") && activeObj.current) { // not clicking
             activeObj.current = false;
             lastTextSelection.current = "";
-            handleSelection(event);
+            handleSelection();
             setToDisplay(false);
         } else if (!dragging.current && !activeObj.current && textOn) { // create text area 
             lastTextSelection.current = "";
-            handleSelection(event);
+            handleSelection();
             setToDisplay(false);
             console.log("create text: " + event.clientX + " " + event.clientY);
             newTextArea(event.pageX, event.pageY, i.current); // location and index
@@ -132,8 +141,193 @@ function AnnoteArea() {
         setTextAreas((prevTextAreas) => [...prevTextAreas, newTextAreaElement]);
     };
 
-    const handleSelection = (event: Event) => {
-        event.stopPropagation();
+    const handleSelection = () => {
+        // Helper function to get the outerHTML of an element
+        const getOuterHTML = (element: Node) => {
+            const tempElement = document.createElement('div');
+            tempElement.appendChild(element.cloneNode(true));
+            return tempElement.innerHTML;
+        };
+
+        const getInnerText = (element: Node) => {
+            const tempElement = document.createElement('div');
+            tempElement.appendChild(element.cloneNode(true));
+            return tempElement.innerText;
+        }
+
+        const positionMenu = (range: Range) => {
+            var xPos = mouseX.current;
+            var yPos = mouseY.current; 
+
+            const startNode = range.startContainer;
+            if (startNode) {
+                const boxTop = startNode.parentElement? startNode.parentElement.getBoundingClientRect().top : 0;
+                const boxBot = startNode.parentElement? startNode.parentElement.getBoundingClientRect().bottom : 0;
+                yPos = (document.documentElement.scrollTop + boxTop) - 50; // 50 is height of menu
+                xPos = minX.current + (maxX.current-minX.current)/2 - 100; // 100 is half of width of menu
+                if (boxBot-boxTop < 30) yPos -= 120/(boxBot-boxTop);
+            }
+            else yPos -= 70;
+            
+            setDisplayX(xPos);
+            setDisplayY(yPos);
+            setToDisplay(true);
+        }
+
+        const getNextNode = (node: Node) => {
+            if (node.firstChild)
+                return node.firstChild;
+            while (node)
+            {
+                if (node.nextSibling)
+                    return node.nextSibling;
+                node = node.parentNode!;
+            }
+        }
+
+        const setHighlight = (range: Range) => { 
+            
+            // Get the common ancestor container and iterate through child nodes
+            const ancestor = range.commonAncestorContainer;
+            let startNode: Node = range.startContainer;
+            let endNode: Node = range.endContainer;
+            let nodes = [];
+            let currentNode: Node; 
+            
+            for (currentNode = startNode.parentNode!; currentNode; currentNode = getNextNode(currentNode)!) {
+                nodes.push(currentNode);
+                if (currentNode == endNode) break; 
+            }
+
+            nodes.forEach(node => {
+                console.log("node: " + getOuterHTML(currentNode));
+                if (range.intersectsNode(currentNode)) {
+                    
+                    if (currentNode.nodeType === Node.TEXT_NODE) {
+                        const startOffset = (currentNode === range.startContainer) ? range.startOffset : 0;
+                        const endOffset = (currentNode === range.endContainer) ? range.endOffset : currentNode.nodeValue?.length;
+
+                        if (startOffset < endOffset!) {
+                            console.log("meow text node");
+                            // Wrap the selected part of the text with the new span element
+
+                            const selectedText = currentNode.nodeValue?.substring(startOffset, endOffset);
+                            const replacementText = `<span class="${highlightClass}" style="background-color:${highlightColor};">${selectedText}</span>`;
+                            const newHTML = currentNode.nodeValue?.replace(selectedText!, replacementText);
+
+                            // Create a new element to hold the replacement HTML
+                            const newElement = document.createElement("span");
+                            newElement.innerHTML = newHTML || ""; // Use empty string if newHTML is undefined
+
+                            // Replace the current text node with the new element
+                            currentNode.parentNode?.replaceChild(newElement, currentNode);
+                            //const selectedNode = document.createTextNode(selectedText!);
+                            //newNode.appendChild(selectedNode);
+                        }
+                    }
+                    else { // TO-DO: doesn't work past first node
+                        const elementNode = currentNode as HTMLElement; // Type assertion
+
+                        const clonedRange = range.cloneRange();
+                        clonedRange.selectNodeContents(currentNode);
+
+                        // Calculate offsets
+                        const startOffset = (currentNode === range.startContainer) ? range.startOffset : 0;
+                        const endOffset = (currentNode === range.endContainer) ? range.endOffset : elementNode.textContent?.length;
+
+
+                        const textBefore = clonedRange.toString().substring(0, startOffset);
+                        const textAfter = clonedRange.toString().substring(endOffset!);
+
+                        const replacementText = `<span class="${highlightClass}">` + clonedRange.toString().substring(startOffset, endOffset) + "<\\span>";
+
+                        const newHTML = `${textBefore}${replacementText}${textAfter}`;
+                        elementNode.innerHTML = newHTML;
+                        console.log("eh " + elementNode.innerHTML);
+                    }
+                        /* else if */
+                    //if (currentNode.nodeType === Node.ELEMENT_NODE) {
+                        //if (range.intersectsNode(currentNode)) {
+                            // Wrap the entire element node with the new span element
+                    
+                        //const clonedNode = currentNode.cloneNode(true);
+                        //newNode.appendChild(clonedNode);
+                       //}
+                    //}
+                
+                }
+            });
+            /*
+            while (currentNode && currentNode !== range.endContainer.nextSibling) {
+                console.log("node: " + getOuterHTML(currentNode));
+                if (range.intersectsNode(currentNode)) {
+                    
+                    if (currentNode.nodeType === Node.TEXT_NODE) {
+                        const startOffset = (currentNode === range.startContainer) ? range.startOffset : 0;
+                        const endOffset = (currentNode === range.endContainer) ? range.endOffset : currentNode.nodeValue?.length;
+
+                        if (startOffset < endOffset!) {
+                            console.log("meow text node");
+                            // Wrap the selected part of the text with the new span element
+
+                            const selectedText = currentNode.nodeValue?.substring(startOffset, endOffset);
+                            const replacementText = `<span class="${highlightClass}" style="background-color:${highlightColor};">${selectedText}</span>`;
+                            const newHTML = currentNode.nodeValue?.replace(selectedText!, replacementText);
+
+                            // Create a new element to hold the replacement HTML
+                            const newElement = document.createElement("span");
+                            newElement.innerHTML = newHTML || ""; // Use empty string if newHTML is undefined
+
+                            // Replace the current text node with the new element
+                            currentNode.parentNode?.replaceChild(newElement, currentNode);
+                            //const selectedNode = document.createTextNode(selectedText!);
+                            //newNode.appendChild(selectedNode);
+                        }
+                    }
+                    else { // TO-DO: doesn't work past first node
+                        const elementNode = currentNode as HTMLElement; // Type assertion
+
+                        const clonedRange = range.cloneRange();
+                        clonedRange.selectNodeContents(currentNode);
+
+                        // Calculate offsets
+                        const startOffset = (currentNode === range.startContainer) ? range.startOffset : 0;
+                        const endOffset = (currentNode === range.endContainer) ? range.endOffset : elementNode.textContent?.length;
+
+
+                        const textBefore = clonedRange.toString().substring(0, startOffset);
+                        const textAfter = clonedRange.toString().substring(endOffset!);
+
+                        const replacementText = `<span class="${highlightClass}">` + clonedRange.toString().substring(startOffset, endOffset) + "<\\span>";
+
+                        const newHTML = `${textBefore}${replacementText}${textAfter}`;
+                        elementNode.innerHTML = newHTML;
+                        console.log("eh " + elementNode.innerHTML);
+                    }
+                        /* else if */
+                    //if (currentNode.nodeType === Node.ELEMENT_NODE) {
+                        //if (range.intersectsNode(currentNode)) {
+                            // Wrap the entire element node with the new span element
+                    
+                        //const clonedNode = currentNode.cloneNode(true);
+                        //newNode.appendChild(clonedNode);
+                       //}
+                    //}
+                /*
+                }
+
+                currentNode = currentNode.nextSibling!;
+            }*/
+
+            // Replace the selected nodes with the new span element
+            //range.deleteContents();
+            //range.insertNode(newNode);
+        }
+
+        const updateHighlight = (range: Range) => { 
+            console.log("changing color!");
+        }
+
         const selection = document.getSelection();
         if (highlightOn && selection) {
             const selectedText = selection.toString().trim();
@@ -141,37 +335,61 @@ function AnnoteArea() {
             if (selectedText.length >= 1) {
                 dragging.current = true;
                 activeObj.current = true;
+                const range = selection.getRangeAt(0);
                 if (selectedText != lastTextSelection.current) {
-                    var xPos = mouseX.current;
-                    var yPos = mouseY.current; // to-do: make it dyanmic
+                    console.log("hi");
+                    positionMenu(range);
+                    setHighlight(range);
+
+                    setHighlightNodes((prevHighlightNodes) => ({...prevHighlightNodes, [`highlight-${highlightIndex.current}`]: selectedText}));
+                    lastColor.current = highlightColor;
+                }
+                if (highlightColor != lastColor.current) {
+                    updateHighlight(range);
+                    /* // TO-DO: iterate through all nodes that intersect the range
+                        // identify highlight nodes in the range
+                        // for each node, put the part of the text that it contains in a span
+                        // if there is an existing span, combine the spans 
+                    */
                     
-                    const range = selection.getRangeAt(0);
-                    const startNode = range.startContainer;
-                    
-                    if (startNode) {
-                        const boxTop = startNode.parentElement? startNode.parentElement.getBoundingClientRect().top : 0;
-                        const boxBot = startNode.parentElement? startNode.parentElement.getBoundingClientRect().bottom : 0;
-                        yPos = (document.documentElement.scrollTop + boxTop) - 50; // 50 is height of menu
-                        xPos = minX.current + (maxX.current-minX.current)/2 - 100; // 100 is half of width of menu
-                        if (boxBot-boxTop < 30) yPos -= 120/(boxBot-boxTop);
+                        
+                    /*
+                    // Traverse the DOM tree within the range
+                    const treeWalker = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_ELEMENT);
+    
+                    let currentNode: Node = range.startContainer!;
+                    while (currentNode && currentNode !== range.endContainer.nextSibling) {
+                        console.log("Outer: " + getOuterHTML(currentNode));
+                        if (range.intersectsNode(currentNode)) {
+                            if (getOuterHTML(currentNode).includes(`class=${highlightClass}`)) {
+                                //console.log(getOuterHTML(currentNode));
+                                // get the id
+                                // replace the node with the text
+                                // delete from dictionary
+                                //currentNode.parentNode?.removeChild(currentNode);
+                            }
+                            // see what part of the current node is from the selection
+                            //console.log("inner: " + getInnerText(currentNode));
+
+                            // create span 
+                                
+                        }
+                        currentNode = treeWalker.nextNode()!;
+                        
                     }
-                    else yPos -= 70;
-                   
-                    setDisplayX(xPos);
-                    setDisplayY(yPos);
-                    setToDisplay(true);
+                    const newNode = document.createElement("span");
+                    newNode.classList.add(highlightClass);
+                    newNode.id = `highlight-${highlightIndex.current}`;
+                    highlightIndex.current++;
+                    newNode.style.backgroundColor = highlightColor;
+                    newNode.appendChild(range.extractContents());
+                    range.insertNode(newNode);
+                    setHighlightNodes((prevHighlightNodes) => ({...prevHighlightNodes, [`highlight-${highlightIndex.current}`]: selectedText}));    */
                 }
                 lastTextSelection.current = selectedText;
 
                 /*
-                dragging.current = true;
-                activeObj.current = true;
-                const range = selection.getRangeAt(0);
-                const newNode = document.createElement("span");
-                newNode.classList.add(highlightClass);
-                newNode.style.backgroundColor = highlightColor;
-                newNode.appendChild(range.extractContents());
-                range.insertNode(newNode);
+                
                 */
             }
             else {

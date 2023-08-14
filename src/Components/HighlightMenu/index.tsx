@@ -15,12 +15,12 @@ interface HighlightMenuProps {
 const colors = ['pink', 'yellow', 'blue'];
 
 const HighlightMenu: FC<HighlightMenuProps> = ({ x, y, displayMenu }) => {
-    const { setHighlightColor } = useAnnoteArea(); 
+    const { highlightColor, setHighlightColor } = useAnnoteArea(); 
     const handleSelection = (event : MouseEvent<HTMLButtonElement>) => {
         if (!event.target) return;
-        setHighlightColor(event.currentTarget.value);
+        setHighlightColor(window.getComputedStyle(event.target as HTMLButtonElement).backgroundColor);
         
-        console.log("highlight color set to " + event.currentTarget.value);
+        console.log("highlight color set to " + window.getComputedStyle(event.target as HTMLButtonElement).backgroundColor);
     }  
     
     return (
@@ -36,6 +36,7 @@ const HighlightMenu: FC<HighlightMenuProps> = ({ x, y, displayMenu }) => {
                 />
                 ))
             }
+            <Picker />
         </div>
     )
 }

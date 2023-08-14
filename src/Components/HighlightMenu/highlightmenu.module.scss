@@ -2,18 +2,22 @@
     height: 50px;
     width: 200px;
     display: flex;
-    gap: 8px;
-    background-color: black;
-    color: #fff;
-    border-radius: 6px;
-    padding: 5px 0;
-    position: absolute;
+    flex-direction: row;
     justify-content: center;
+    gap: 11px;
+    background-color: black;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
     user-select: auto;
     pointer-events: auto;
     transition: opacity 0.4s;
     z-index: 10;
     opacity: 1;
+
+    > *:first-child, > *:not(:first-child) {
+        margin-top: 5px;
+    }
 }
 .highlightMenu::after {
     content: "";
@@ -37,19 +41,26 @@
     height: 30px;
     border-radius: 6px;
     background-color: blue;
+    border: none;
 }
 
 .pink {
-    background-color: pink;
-    border-color: pink;
+    background-color: #fa9295;
+}
+.pink:active {
+    background-color: #df6d71;
 }
 
 .yellow {
-    background-color: yellow;
-    border-color: yellow;
+    background-color: #ffe159;
+}
+.yellow:active {
+    background-color: #e1be3d;
 }
 
 .blue {
-    background-color: aqua;
-    border-color: aqua;
+    background-color: #59fff1;
+}
+.blue:active {
+    background-color: #32d3d0;
 }
